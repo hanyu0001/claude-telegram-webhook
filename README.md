@@ -26,6 +26,8 @@ cp .env.example .env
 Fill in:
 - `TELEGRAM_BOT_TOKEN`
 - `ANTHROPIC_API_KEY`
+- `ANTHROPIC_BASE_URL` (optional for third-party Anthropic-compatible endpoints)
+- `ANTHROPIC_MODEL` (optional override)
 
 ### 3) Start the server
 
@@ -124,11 +126,21 @@ curl -X POST http://localhost:3030/access/remove \
 ```
 TELEGRAM_BOT_TOKEN=...
 ANTHROPIC_API_KEY=...
-CLAUDE_MODEL=claude-3-5-sonnet-20240620
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+ANTHROPIC_MODEL=claude-3-5-sonnet-20240620
 SYSTEM_PROMPT=You are Claude. Reply concisely.
 PORT=3030
 WEBHOOK_PATH=/telegram/webhook
 BASE_URL=https://your-public-url
+```
+
+## Third-party Anthropic-compatible APIs
+
+If you use a compatible provider, set:
+
+```
+ANTHROPIC_BASE_URL=https://your-provider.example.com/apps/anthropic
+ANTHROPIC_MODEL=your-model-name
 ```
 
 ## Common issues

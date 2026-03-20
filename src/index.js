@@ -10,7 +10,8 @@ app.use(express.json({ limit: '2mb' }))
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
-const CLAUDE_MODEL = process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20240620'
+const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com'
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || process.env.CLAUDE_MODEL || 'claude-3-5-sonnet-20240620'
 const PORT = process.env.PORT || 3030
 const WEBHOOK_PATH = process.env.WEBHOOK_PATH || '/telegram/webhook'
 const BASE_URL = process.env.BASE_URL
@@ -54,7 +55,7 @@ function chunk(text, limit) {
 }
 
 async function callClaude(text, userId) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch(`${ANTHROPIC_BASE_URL}/v1/messages`, {
     method: 'POST',
     headers: {
       'x-api-key': ANTHROPIC_API_KEY,
@@ -62,7 +63,7 @@ async function callClaude(text, userId) {
       'content-type': 'application/json'
     },
     body: JSON.stringify({
-      model: CLAUDE_MODEL,
+      model: ANTHROPIC_MODEL,
       max_tokens: 800,
       system: SYSTEM_PROMPT,
       messages: [
@@ -72,7 +73,8 @@ async function callClaude(text, userId) {
   })
   const data = await res.json()
   if (!res.ok) {
-    throw new Error(data?.error?.message || 'Claude API error')
+    const errMsg = data?.error?.message || data?.message || 'Claude API error'
+    throw new Error(errMsg)
   }
   const content = data.content || []
   const textParts = content.filter(p => p.type === 'text').map(p => p.text).join('')
