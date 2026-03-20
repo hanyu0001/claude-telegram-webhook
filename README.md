@@ -132,6 +132,7 @@ SYSTEM_PROMPT=You are Claude. Reply concisely.
 PORT=3030
 WEBHOOK_PATH=/telegram/webhook
 BASE_URL=https://your-public-url
+CONFIRM_TTL_MINUTES=60
 ```
 
 ## Third-party Anthropic-compatible APIs
@@ -142,6 +143,15 @@ If you use a compatible provider, set:
 ANTHROPIC_BASE_URL=https://your-provider.example.com/apps/anthropic
 ANTHROPIC_MODEL=your-model-name
 ```
+
+## Telegram confirmation flow
+
+If Claude responds with a confirmation/approval request, the bot will ask you to reply with:
+
+- `yes` to proceed
+- `no` to cancel
+
+Pending confirmations expire after `CONFIRM_TTL_MINUTES` (default 60 minutes).
 
 ## Common issues
 

@@ -4,6 +4,7 @@ const express = require('express')
 require('dotenv').config()
 
 const { gate, approvePair, readAccessFile, saveAccessFile } = require('./access')
+const { getPending, setPending, clearPending } = require('./confirm')
 
 const app = express()
 app.use(express.json({ limit: '2mb' }))
@@ -16,6 +17,7 @@ const PORT = process.env.PORT || 3030
 const WEBHOOK_PATH = process.env.WEBHOOK_PATH || '/telegram/webhook'
 const BASE_URL = process.env.BASE_URL
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || 'You are Claude. Reply concisely.'
+const CONFIRM_TTL_MINUTES = Number(process.env.CONFIRM_TTL_MINUTES || 60)
 
 if (!TELEGRAM_BOT_TOKEN) {
   console.error('Missing TELEGRAM_BOT_TOKEN')
@@ -54,7 +56,21 @@ function chunk(text, limit) {
   return out
 }
 
-async function callClaude(text, userId) {
+async function callClaude(text, userId, pending) {
+  const messages = [
+    { role: 'user', content: `From Telegram user ${userId}: ${text}` }
+  ]
+  if (pending) {
+    messages.unshift({
+      role: 'assistant',
+      content: pending.assistant
+    })
+    messages.push({
+      role: 'user',
+      content: `User decision: ${pending.decision}`
+    })
+  }
+
   const res = await fetch(`${ANTHROPIC_BASE_URL}/v1/messages`, {
     method: 'POST',
     headers: {
@@ -66,9 +82,7 @@ async function callClaude(text, userId) {
       model: ANTHROPIC_MODEL,
       max_tokens: 800,
       system: SYSTEM_PROMPT,
-      messages: [
-        { role: 'user', content: `From Telegram user ${userId}: ${text}` }
-      ]
+      messages
     })
   })
   const data = await res.json()
@@ -140,7 +154,42 @@ app.post(WEBHOOK_PATH, async (req, res) => {
   } catch {}
 
   try {
+    const pending = getPending(chatId, CONFIRM_TTL_MINUTES)
+
+    if (pending) {
+      const normalized = text.trim().toLowerCase()
+      if (normalized === 'yes' || normalized === 'y') {
+        clearPending(chatId)
+        const reply = await callClaude('', fromId, { ...pending, decision: 'approved' })
+        const limit = Math.max(1, Math.min(gateResult.access?.textChunkLimit || 4096, 4096))
+        const parts = chunk(reply, limit)
+        for (const part of parts) {
+          await telegram('sendMessage', { chat_id: chatId, text: part })
+        }
+        return
+      }
+
+      if (normalized === 'no' || normalized === 'n') {
+        clearPending(chatId)
+        await telegram('sendMessage', {
+          chat_id: chatId,
+          text: 'Cancelled.'
+        })
+        return
+      }
+    }
+
     const reply = await callClaude(text, fromId)
+
+    if (/\bconfirm\b|\bapprove\b|\brequires approval\b|\bpermission\b|\bconfirm to proceed\b/i.test(reply)) {
+      setPending(chatId, { assistant: reply })
+      await telegram('sendMessage', {
+        chat_id: chatId,
+        text: `${reply}\n\nReply with "yes" to approve or "no" to cancel.`
+      })
+      return
+    }
+
     const limit = Math.max(1, Math.min(gateResult.access?.textChunkLimit || 4096, 4096))
     const parts = chunk(reply, limit)
     for (const part of parts) {
